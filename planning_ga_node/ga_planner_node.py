@@ -79,7 +79,7 @@ class GA_PlannerNode(Node):
         self.GENERATIONS = 15
         self.MUTATION_RATE = 0.08
         self.WAYPOINTS_PER_PATH = 30
-        self.LOOK_AHEAD_DISTANCE = 15.0
+        self.LOOK_AHEAD_DISTANCE = 7.0
         self.LATERAL_OFFSET_RIGHT = 0.0
         print(f"[INIT] GA params: POP={self.POPULATION_SIZE}, GEN={self.GENERATIONS}, "
               f"MUT={self.MUTATION_RATE}, WPP={self.WAYPOINTS_PER_PATH}")
@@ -135,10 +135,10 @@ class GA_PlannerNode(Node):
         # is deliberately conservative; using it as a generation cap makes tight
         # U-turns ungeneratable, so the GA emits a near-straight path, the MPC
         # tracks it faithfully, and the vehicle drives off the road.
-        self.MAX_GEN_CURVATURE = 0.20
+        self.MAX_GEN_CURVATURE = 0.08
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 0.5
+        self.V_NOMINAL      = 0.3
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 2.0
         self.V_PLAN_HORIZON = 40.0
@@ -1155,7 +1155,7 @@ class GA_PlannerNode(Node):
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
-            n_recovery_wps = min(int(physical_cte / 0.5) + 2, 8)
+            n_recovery_wps = min(max(int(physical_cte / 0.5) + 2, int(6 * self.V_NOMINAL / 0.3)), 20)
 
             for elite_i in range(n_ref_elites):
                 lateral_offset = self.ga_rng.uniform(-0.2, 0.2)
