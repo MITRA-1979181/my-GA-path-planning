@@ -1763,10 +1763,10 @@ class GA_PlannerNode(Node):
                     _pub_cte = float(_pub_d)
                 except Exception:
                     pass
-            _speed_cap = 0.20 if _pub_cte > 2.0 else (0.25 if _pub_cte > 1.0 else best.target_speed)
+            _speed_cap = (best.target_speed * 0.45) if _pub_cte > 2.0 else ((best.target_speed * 0.7) if _pub_cte > 1.0 else best.target_speed)
             dyaw = math.atan2(math.sin(p2[2] - p1[2]), math.cos(p2[2] - p1[2]))
             if abs(dyaw) > 0.10:
-                dynamic_v = max(0.12, _speed_cap - (abs(dyaw) - 0.10) * 1.0)
+                dynamic_v = max(best.target_speed * 0.4, _speed_cap - (abs(dyaw) - 0.10) * 1.0)
             else:
                 dynamic_v = _speed_cap
 
