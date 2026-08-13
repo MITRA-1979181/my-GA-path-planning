@@ -67,8 +67,8 @@
     # MPC extrapolated outside the table, giving unpredictable steer rate limits.
     # Added 0.3 m/s entry with a generous 80 deg/s limit so MPC can steer quickly
     # enough to track curves at low speed.
-    steer_rate_lim_dps_list_by_curvature: [40.0, 50.0, 60.0]
-    curvature_list_for_steer_rate_lim: [0.001, 0.002, 0.01]
+    steer_rate_lim_dps_list_by_curvature: [15.0, 12.0, 10.0]
+    curvature_list_for_steer_rate_lim: [0.001, 0.01, 0.05]
     steer_rate_lim_dps_list_by_velocity: [80.0, 18.0, 14.0, 12.0, 10.0, 8.0]
     velocity_list_for_steer_rate_lim: [0.3, 1.0, 2.0, 5.0, 10.0, 20.0]
 
