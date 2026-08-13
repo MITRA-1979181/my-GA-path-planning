@@ -139,6 +139,9 @@ class GA_PlannerNode(Node):
         # Weight for curvature-rate (smoothness) penalty. Start small so it
         # never overrides path-following accuracy; raise only if it helps.
         self.KAPPA_RATE_WEIGHT = 0.5
+        # Pose low-pass filter. 1.0 = OFF (simulation).
+        # Real vehicle with noisy NDT/LiDAR pose: try 0.3-0.5.
+        self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
         self.V_NOMINAL      = 0.5
@@ -521,7 +524,30 @@ class GA_PlannerNode(Node):
         q = ps.pose.orientation
         siny_cosp = 2 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
-        self.current_yaw = math.atan2(siny_cosp, cosy_cosp)
+        _raw_yaw = math.atan2(siny_cosp, cosy_cosp)
+        _rx = ps.pose.position.x
+        _ry = ps.pose.position.y
+        # Low-pass filter on incoming pose. Simulation pose is exact, but
+        # real-vehicle NDT/LiDAR pose is noisy; that noise feeds straight into
+        # CTE/heading error and makes the controller chase sensor jitter.
+        # POSE_FILTER_ALPHA = 1.0 disables filtering (simulation behaviour).
+        _a = getattr(self, 'POSE_FILTER_ALPHA', 1.0)
+        if _a < 1.0 and getattr(self, '_pf_init', False):
+            _rx = _a * _rx + (1.0 - _a) * self._pf_x
+            _ry = _a * _ry + (1.0 - _a) * self._pf_y
+            _dy = math.atan2(math.sin(_raw_yaw - self._pf_yaw),
+                             math.cos(_raw_yaw - self._pf_yaw))
+            _raw_yaw = math.atan2(math.sin(self._pf_yaw + _a * _dy),
+                                  math.cos(self._pf_yaw + _a * _dy))
+            ps.pose.position.x = _rx
+            ps.pose.position.y = _ry
+            ps.pose.orientation = Quaternion(
+                w=math.cos(_raw_yaw / 2.0), x=0.0, y=0.0,
+                z=math.sin(_raw_yaw / 2.0))
+        self._pf_x, self._pf_y, self._pf_yaw = _rx, _ry, _raw_yaw
+        self._pf_init = True
+        self.current_pose = ps
+        self.current_yaw = _raw_yaw
 
         print(f"[ODOM_CB] pos=({ps.pose.position.x:.3f}, {ps.pose.position.y:.3f}), "
               f"yaw={math.degrees(self.current_yaw):.1f}°, calibrated={self.is_calibrated}")
