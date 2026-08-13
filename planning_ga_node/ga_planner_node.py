@@ -136,6 +136,9 @@ class GA_PlannerNode(Node):
         # U-turns ungeneratable, so the GA emits a near-straight path, the MPC
         # tracks it faithfully, and the vehicle drives off the road.
         self.MAX_GEN_CURVATURE = 0.08
+        # Weight for curvature-rate (smoothness) penalty. Start small so it
+        # never overrides path-following accuracy; raise only if it helps.
+        self.KAPPA_RATE_WEIGHT = 0.5
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
         self.V_NOMINAL      = 0.5
@@ -1249,6 +1252,17 @@ class GA_PlannerNode(Node):
 
             curvature_violation = max(0.0, max_kappa - self.MAX_GEN_CURVATURE)
             hard_curvature_penalty = curvature_violation * 60.0
+            # Curvature-RATE penalty (clothoid-like smoothness).
+            # smoothness_cost above penalises TOTAL heading change, which also
+            # penalises legitimate large-but-gradual turns. This term instead
+            # penalises how ABRUPTLY curvature changes between consecutive
+            # segments, so a gentle entry into a curve is free while a sudden
+            # kink is punished. Keeps turning ability intact.
+            kappa_rate_cost = 0.0
+            if len(raw_kappas) >= 2:
+                _dk = [abs(raw_kappas[i] - raw_kappas[i-1]) / max(self.DELTA_S, 1e-6)
+                       for i in range(1, len(raw_kappas))]
+                kappa_rate_cost = sum(_dk) / len(_dk)
 
             heading_dev_cost = 0.0
             if len(p.states) > 0 and ref_points is not None and len(ref_points) > 0:
@@ -1276,6 +1290,7 @@ class GA_PlannerNode(Node):
                 p.collision_cost * self.COLLISION_WEIGHT +
                 p.cte_cost       * self.CTE_WEIGHT +
                 p.curvature_cost * self.CURVATURE_WEIGHT +
+                kappa_rate_cost * self.KAPPA_RATE_WEIGHT +
                 hard_curvature_penalty +
                 heading_dev_cost * self.HEADING_DEV_WEIGHT +
                 jerk_cost        * self.JERK_WEIGHT
