@@ -135,7 +135,7 @@ class GA_PlannerNode(Node):
         # is deliberately conservative; using it as a generation cap makes tight
         # U-turns ungeneratable, so the GA emits a near-straight path, the MPC
         # tracks it faithfully, and the vehicle drives off the road.
-        self.MAX_GEN_CURVATURE = 0.22
+        self.MAX_GEN_CURVATURE = 0.15
         # Weight for curvature-rate (smoothness) penalty. Start small so it
         # never overrides path-following accuracy; raise only if it helps.
         self.KAPPA_RATE_WEIGHT = 0.5
@@ -1189,7 +1189,12 @@ class GA_PlannerNode(Node):
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
-            n_recovery_wps = 3
+            n_recovery_wps = 5
+            _rx0 = float(self.ref_points[snap_idx_init, 0])
+            _ry0 = float(self.ref_points[snap_idx_init, 1])
+            _ryaw0 = float(self.ref_points[snap_idx_init, 2])
+            _signed_cte = (-(sx - _rx0) * math.sin(_ryaw0)
+                           + (sy - _ry0) * math.cos(_ryaw0))
 
             for elite_i in range(n_ref_elites):
                 lateral_offset = self.ga_rng.uniform(-0.2, 0.2)
@@ -1201,16 +1206,13 @@ class GA_PlannerNode(Node):
                     ry = float(self.ref_points[ref_i, 1])
                     ryaw = float(self.ref_points[ref_i, 2]) if self.ref_points.shape[1] > 2 else seed_yaw
                     if wi < n_recovery_wps:
-                        frac = wi / n_recovery_wps
-                        px_e = sx + frac * (rx - sx)
-                        py_e = sy + frac * (ry - sy)
-                        blend_yaw = syaw + frac * math.atan2(
-                            math.sin(ryaw - syaw), math.cos(ryaw - syaw))
-                        states.append((px_e, py_e, blend_yaw))
+                        frac = wi / float(n_recovery_wps)
+                        off = (1.0 - frac) * _signed_cte + frac * lateral_offset
                     else:
-                        px_e = rx + lateral_offset * math.cos(ryaw + math.pi / 2)
-                        py_e = ry + lateral_offset * math.sin(ryaw + math.pi / 2)
-                        states.append((px_e, py_e, ryaw))
+                        off = lateral_offset
+                    px_e = rx + off * math.cos(ryaw + math.pi / 2)
+                    py_e = ry + off * math.sin(ryaw + math.pi / 2)
+                    states.append((px_e, py_e, ryaw))
                     if wi > 0:
                         directions.append(1)
                 population.append(PathChromosome(states, directions))
@@ -1766,8 +1768,6 @@ class GA_PlannerNode(Node):
             window_size = 5
             smoothed_xy = np.copy(xy_points)
             for i in range(len(xy_points)):
-                if i < 2 or i >= len(xy_points) - 2:
-                    continue
                 start = max(0, i - window_size // 2)
                 end = min(len(xy_points), i + window_size // 2 + 1)
                 smoothed_xy[i, 0] = np.mean(xy_points[start:end, 0])
