@@ -1189,7 +1189,7 @@ class GA_PlannerNode(Node):
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
-            n_recovery_wps = 5
+            n_recovery_wps = 2
             _rx0 = float(self.ref_points[snap_idx_init, 0])
             _ry0 = float(self.ref_points[snap_idx_init, 1])
             _ryaw0 = float(self.ref_points[snap_idx_init, 2])
