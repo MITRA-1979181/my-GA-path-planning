@@ -1189,7 +1189,7 @@ class GA_PlannerNode(Node):
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
-            n_recovery_wps = 2
+            n_recovery_wps = 5
             _rx0 = float(self.ref_points[snap_idx_init, 0])
             _ry0 = float(self.ref_points[snap_idx_init, 1])
             _ryaw0 = float(self.ref_points[snap_idx_init, 2])
@@ -1219,6 +1219,16 @@ class GA_PlannerNode(Node):
                     states.append((px_e, py_e, ryaw))
                     if wi > 0:
                         directions.append(1)
+                for _i in range(len(states) - 1):
+                    _dx = states[_i + 1][0] - states[_i][0]
+                    _dy = states[_i + 1][1] - states[_i][1]
+                    if math.hypot(_dx, _dy) > 1e-6:
+                        states[_i] = (states[_i][0], states[_i][1],
+                                      math.atan2(_dy, _dx))
+                if len(states) >= 2:
+
+                    states[-1] = (states[-1][0], states[-1][1], states[-2][2])
+                    
                 population.append(PathChromosome(states, directions))
             print(f"[INIT_POP] Seeded {n_ref_elites} ref-elites "
                   f"(physical_cte={physical_cte:.2f}m, recovery_wps={n_recovery_wps})")
