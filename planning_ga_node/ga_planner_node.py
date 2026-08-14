@@ -135,7 +135,7 @@ class GA_PlannerNode(Node):
         # is deliberately conservative; using it as a generation cap makes tight
         # U-turns ungeneratable, so the GA emits a near-straight path, the MPC
         # tracks it faithfully, and the vehicle drives off the road.
-        self.MAX_GEN_CURVATURE = 0.08
+        self.MAX_GEN_CURVATURE = 0.22
         # Weight for curvature-rate (smoothness) penalty. Start small so it
         # never overrides path-following accuracy; raise only if it helps.
         self.KAPPA_RATE_WEIGHT = 0.5
@@ -200,6 +200,7 @@ class GA_PlannerNode(Node):
         self.num_real_ref_points: int = 0
         self.last_path = None
         self.alpha = 0.8
+        self.REF_STEP_IDX = 4
         print("[INIT] State fields initialized")
         
         self.gate_pub = self.create_publisher(
@@ -268,6 +269,10 @@ class GA_PlannerNode(Node):
 
             self.ref_tree = KDTree(self.ref_points[:, :2])
             self.num_real_ref_points = len(self.ref_points)
+            _sp = float(np.mean(np.hypot(np.diff(self.ref_points[:, 0]),
+                                np.diff(self.ref_points[:, 1]))))
+            self.REF_STEP_IDX = max(1, int(round(self.DELTA_S / _sp)))
+            print(f"[CSV] ref spacing={_sp:.4f} m -> REF_STEP_IDX={self.REF_STEP_IDX}")
             print(f"[CSV] KDTree built on {self.num_real_ref_points} reference points (2D)")
 
             self.get_logger().info("🗺️  CSV loaded with zero offset (absolute coords)")
@@ -1180,22 +1185,22 @@ class GA_PlannerNode(Node):
         n_ref_elites = max(3, self.POPULATION_SIZE // 3)
         snap_idx_init = int(getattr(self, '_last_snap_idx', 0))
 
-        if self.ref_points is not None and len(self.ref_points) > snap_idx_init + self.WAYPOINTS_PER_PATH:
+        if self.ref_points is not None and len(self.ref_points) > snap_idx_init + self.WAYPOINTS_PER_PATH * self.REF_STEP_IDX:
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
-            n_recovery_wps = min(max(int(physical_cte / 0.5) + 2, int(6 * self.V_NOMINAL / 0.3)), 20)
+            n_recovery_wps = 3
 
             for elite_i in range(n_ref_elites):
                 lateral_offset = self.ga_rng.uniform(-0.2, 0.2)
                 states = []
                 directions = []
                 for wi in range(self.WAYPOINTS_PER_PATH + 1):
-                    ref_i = min(snap_idx_init + wi, len(self.ref_points) - 1)
+                    ref_i = min(snap_idx_init + wi * self.REF_STEP_IDX, len(self.ref_points) - 1)
                     rx = float(self.ref_points[ref_i, 0])
                     ry = float(self.ref_points[ref_i, 1])
                     ryaw = float(self.ref_points[ref_i, 2]) if self.ref_points.shape[1] > 2 else seed_yaw
-                    if wi < n_recovery_wps and physical_cte > 0.3:
+                    if wi < n_recovery_wps:
                         frac = wi / n_recovery_wps
                         px_e = sx + frac * (rx - sx)
                         py_e = sy + frac * (ry - sy)
@@ -1291,19 +1296,12 @@ class GA_PlannerNode(Node):
                 kappa_rate_cost = sum(_dk) / len(_dk)
 
             heading_dev_cost = 0.0
-            if len(p.states) > 0 and ref_points is not None and len(ref_points) > 0:
-                _rp = ref_points
-                for s in p.states:
-                    _d, _idx = tree.query([s[0], s[1]])
-                    if self.ref_points is not None:
-                        _gd, _gidx = self.ref_tree.query([s[0], s[1]]) \
-                            if self.ref_tree is not None else (0, 0)
-                        ref_yaw = float(self.ref_points[_gidx, 2])
-                        hdiff = abs(math.atan2(
-                            math.sin(s[2] - ref_yaw),
-                            math.cos(s[2] - ref_yaw)))
-                        heading_dev_cost += hdiff
-                heading_dev_cost /= max(len(p.states), 1)
+            if len(p.states) > 0 and self.ref_tree is not None and self.ref_points is not None:
+                _, _gidx = self.ref_tree.query(pts_eval)
+                _ryaw = self.ref_points[_gidx, 2]
+                _pyaw = np.array([s[2] for s in p.states])
+                heading_dev_cost = float(np.mean(np.abs(
+                    np.arctan2(np.sin(_pyaw - _ryaw), np.cos(_pyaw - _ryaw)))))
 
             jerk_cost = 0.0
             if len(raw_kappas) >= 2:
@@ -1517,7 +1515,9 @@ class GA_PlannerNode(Node):
                 accumulated_dist += math.hypot(dx, dy)
                 end_idx += 1
 
-            min_window = 100 if yaw_change > 60.0 else (65 if yaw_change > 30.0 else 20)
+            _need = int(self.WAYPOINTS_PER_PATH * self.REF_STEP_IDX * 1.2)
+            min_window = max(_need,
+                             100 if yaw_change > 60.0 else (65 if yaw_change > 30.0 else 20))
             if (end_idx - start_idx) < min_window:
                 end_idx = min(start_idx + min_window, len(self.ref_points) - 1)
 
@@ -1766,6 +1766,8 @@ class GA_PlannerNode(Node):
             window_size = 5
             smoothed_xy = np.copy(xy_points)
             for i in range(len(xy_points)):
+                if i < 2 or i >= len(xy_points) - 2:
+                    continue
                 start = max(0, i - window_size // 2)
                 end = min(len(xy_points), i + window_size // 2 + 1)
                 smoothed_xy[i, 0] = np.mean(xy_points[start:end, 0])
