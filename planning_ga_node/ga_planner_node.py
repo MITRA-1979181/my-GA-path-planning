@@ -135,7 +135,7 @@ class GA_PlannerNode(Node):
         # is deliberately conservative; using it as a generation cap makes tight
         # U-turns ungeneratable, so the GA emits a near-straight path, the MPC
         # tracks it faithfully, and the vehicle drives off the road.
-        self.MAX_GEN_CURVATURE = 0.15
+        self.MAX_GEN_CURVATURE = 0.22
         # Weight for curvature-rate (smoothness) penalty. Start small so it
         # never overrides path-following accuracy; raise only if it helps.
         self.KAPPA_RATE_WEIGHT = 0.5
@@ -1951,7 +1951,15 @@ class GA_PlannerNode(Node):
                 if dx * cos_h + dy * sin_h > -0.3:
                     filtered.append(pt)
             traj.points = filtered
-
+        try:
+            _ex = float(self.current_pose.pose.position.x)
+            _ey = float(self.current_pose.pose.position.y)
+            _dmin = min(math.hypot(float(s[0]) - _ex, float(s[1]) - _ey)
+                        for s in raw_states)
+            print(f"[TRACK_ERR] ego_to_GA_path={_dmin:.3f}m")
+        except Exception:
+            pass
+            
         self.safe_publish(self.traj_pub, traj)
         print(f"[PUBLISH] /trajectory: {len(traj.points)} points published (ego prepended)")
 
