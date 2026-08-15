@@ -76,7 +76,7 @@ class GA_PlannerNode(Node):
         print(f"[INIT] REAL_CAR_MODE = {self.REAL_CAR_MODE}")
 
         self.POPULATION_SIZE = 30
-        self.GENERATIONS = 15
+        self.GENERATIONS = 30
         self.MUTATION_RATE = 0.08
         self.WAYPOINTS_PER_PATH = 30
         self.LOOK_AHEAD_DISTANCE = 7.0
@@ -144,9 +144,9 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 1.0
+        self.V_NOMINAL      = 4.0
         self.V_MIN          = 0.3
-        self.A_LAT_MAX      = 2.0
+        self.A_LAT_MAX      = 1.0
         self.V_PLAN_HORIZON = 40.0
         self.TRAJECTORY_SPEED = self.V_NOMINAL
         print(f"[INIT] TRAJECTORY_SPEED={self.TRAJECTORY_SPEED} m/s")
@@ -1560,7 +1560,8 @@ class GA_PlannerNode(Node):
             elif yaw_change > 30.0:
                 current_target_speed = 0.18
             else:
-                current_target_speed = self.TRAJECTORY_SPEED
+                current_target_speed = min(self.TRAJECTORY_SPEED,
+                                           self.compute_target_speed(_snap_i))
 
             if self.goal_pose is not None:
                 gx = self.goal_pose.pose.position.x
