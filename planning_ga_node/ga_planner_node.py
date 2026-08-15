@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 5.0
+        self.V_NOMINAL      = 3.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 1.0
         self.V_PLAN_HORIZON = 40.0
@@ -201,6 +201,7 @@ class GA_PlannerNode(Node):
         self.last_path = None
         self.alpha = 0.8
         self.REF_STEP_IDX = 4
+        self.GOAL_REF_IDX = None
         print("[INIT] State fields initialized")
         
         self.gate_pub = self.create_publisher(
@@ -566,6 +567,7 @@ class GA_PlannerNode(Node):
                       f"OFFSET=({self.OFFSET_X:.3f}, {self.OFFSET_Y:.3f}) m")
                 if self.goal_pose is None and self.ref_points is not None:
                     goal_idx = min(1400, len(self.ref_points) - 1)
+                    self.GOAL_REF_IDX = goal_idx
                     last = self.ref_points[goal_idx]
                     goal_msg = PoseStamped()
                     goal_msg.header.frame_id = "map"
@@ -1185,7 +1187,7 @@ class GA_PlannerNode(Node):
         n_ref_elites = max(3, self.POPULATION_SIZE // 3)
         snap_idx_init = int(getattr(self, '_last_snap_idx', 0))
 
-        if self.ref_points is not None and len(self.ref_points) > snap_idx_init + self.WAYPOINTS_PER_PATH * self.REF_STEP_IDX:
+        if self.ref_points is not None and len(self.ref_points) > snap_idx_init + 5:
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
@@ -1584,7 +1586,7 @@ class GA_PlannerNode(Node):
                         _goal_idx = None
                 _near_goal_idx = (_goal_idx is not None
                                   and int(_snap_idx) >= _goal_idx - 15)
-                if snap_exhausted or (_near_goal_idx and dist_to_goal < 2.0):
+                if snap_exhausted or _near_goal_idx:
                     current_target_speed = 0.0
                     self.autonomous_enabled = False
                     self._goal_reached = True
