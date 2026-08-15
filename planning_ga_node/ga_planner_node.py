@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 4.0
+        self.V_NOMINAL      = 5.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 1.0
         self.V_PLAN_HORIZON = 40.0
@@ -169,7 +169,7 @@ class GA_PlannerNode(Node):
         if self.REAL_CAR_MODE:
             self.TRAJECTORY_SPEED = 0.8
             self.V_NOMINAL = 0.8
-            self.GENERATIONS = 30
+            self.GENERATIONS = 15
             self.POPULATION_SIZE = 50
             self.SMOOTHING_STEPS = 8
             print("[INIT] ⚠️  REAL CAR MODE overrides applied")
