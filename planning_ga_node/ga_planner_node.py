@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 3.0
+        self.V_NOMINAL      = 3.4
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 1.0
         self.V_PLAN_HORIZON = 40.0
@@ -2249,7 +2249,8 @@ class GA_PlannerNode(Node):
         anchor = self._stop_anchor
         _a_yaw = 2.0 * math.atan2(anchor.pose.orientation.z,
                                   anchor.pose.orientation.w)
-        for k in range(5):
+        _ramp = max(0.2, 0.35 * self.V_NOMINAL)
+        for k in range(20):
             sp = TrajectoryPoint()
             # Space points forward along the anchor heading. They must NOT be
             # coincident: the MPC derives path heading from the vector between
@@ -2257,8 +2258,8 @@ class GA_PlannerNode(Node):
             # direction, which produces garbage steering. Geometry stays valid
             # and straight; velocity is zero everywhere, so the vehicle stops
             # without turning.
-            sp.pose.position.x = anchor.pose.position.x + k * 0.2 * math.cos(_a_yaw)
-            sp.pose.position.y = anchor.pose.position.y + k * 0.2 * math.sin(_a_yaw)
+            sp.pose.position.x = anchor.pose.position.x + k * _ramp * math.cos(_a_yaw)
+            sp.pose.position.y = anchor.pose.position.y + k * _ramp * math.sin(_a_yaw)
             sp.pose.position.z = anchor.pose.position.z
             sp.pose.orientation = anchor.pose.orientation
             sp.longitudinal_velocity_mps = 0.0
