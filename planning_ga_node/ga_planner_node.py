@@ -859,6 +859,8 @@ class GA_PlannerNode(Node):
             print(f"  ❌ route_callback failed to extract goal: {e}")
 
     def try_start_ga(self):
+        if self._goal_reached:
+            return
         print(f"[TRY_GA] Checking: pose={'OK' if self.current_pose else 'NONE'}, "
               f"goal={'OK' if self.goal_pose else 'NONE'}, "
               f"thread_running={self.ga_thread_running}")
