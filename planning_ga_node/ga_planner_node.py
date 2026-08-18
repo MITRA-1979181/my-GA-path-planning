@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 3.4
+        self.V_NOMINAL      = 4.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 1.0
         self.V_PLAN_HORIZON = 40.0
@@ -1199,6 +1199,7 @@ class GA_PlannerNode(Node):
             _ryaw0 = float(self.ref_points[snap_idx_init, 2])
             _signed_cte = (-(sx - _rx0) * math.sin(_ryaw0)
                            + (sy - _ry0) * math.cos(_ryaw0))
+            _signed_cte = max(-0.25, min(0.25, _signed_cte))
             _cycle_s = max(getattr(self, '_last_compute_s', 0.25), 0.15)
             _sp_eff = self.DELTA_S / max(self.REF_STEP_IDX, 1)
             _lead_idx = int((self.V_NOMINAL * _cycle_s) / _sp_eff)
