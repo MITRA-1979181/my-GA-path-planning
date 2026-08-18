@@ -1,0 +1,35 @@
+v24 (2026-08-16): V=3.0 GEN=15 | straight 3.5cm | return 6.8cm | curves 30.6cm | overall 13.5cm | full route + goal stop
+mpc_weight_lat_error sweep at V=3.0 (2026-08-16): 1.0 -> curves 30.6cm | 10.0 -> curves 25.7cm (BEST, overall 11.9cm) | 30.0 -> curves 27.5cm. Optimum = 10.0
+FINAL 2026-08-16: V_NOMINAL=3.8 m/s (13.7 km/h), GEN=15, mpc_weight_lat_error=10.0
+  straight 10-140:  4.3 cm | curves 150-250: 29.1 cm | straight 255-400: 7.5 cm | overall: 11.9 cm
+  Full route, stops near goal. Physical route limit ~15 km/h (tightest curve R=8.3 m).
+BEST 2026-08-16: V=3.2 m/s + mpc_weight_lat_error=10.0 -> straight 3.3cm | curves 26.0cm | return 4.7cm. Open: does not stop at goal (publish_stop overridden?)
+FINAL 2026-08-16: V=3.0 m/s, GEN=15, mpc_weight_lat_error=10.0, stop ramp 0.2m
+  straight 10-140: 4.0cm | curves: 28.6cm | straight 255-400: 4.6cm | overall: 10.6cm
+  Full route, stops 23cm from centerline at goal.
+FINAL 2026-08-16: V=3.4 m/s (12.2 km/h), GEN=15, mpc_weight_lat_error=10.0, stop traj 20pts ramp=0.35*V
+  straight 4.4cm | curves 24.6cm | return 4.5cm | overall 9.9cm | stops 8cm from centerline
+FINAL 2026-08-16: V=3.4 m/s (12.2 km/h), GEN=15, mpc_weight_lat_error=10.0, stop traj 20pts
+  run1: straight 4.4 | curves 24.6 | return 4.5 | overall 9.9 | stop 8cm
+  run2: straight 3.8 | curves 25.1 | return 11.6 | overall 12.6 | stop 67cm
+  Ceiling: 3.8 m/s oscillates. Route physical limit 15 km/h (R=8.3m curve).
+CONTROLLER COMPARISON 2026-08-18, V=3.4 m/s, same GA planner:
+  MPC:          straight 4.1 | curves 24.9 | return 8.1 | overall 11.3 | max 93 cm
+  Pure pursuit: straight 3.6 | curves 17.0 | return 3.3 | overall  8.2 | max 44 cm
+  -> pure pursuit better in every section. Curve bias 25 -> 17 cm.
+BREAKTHROUGH 2026-08-18: clamp _signed_cte to +/-0.25 m
+  pure pursuit @ 4.0 m/s: straight 4.2 | curves 21.7 | return 4.0 | overall 9.9 cm | stops 8cm
+  (without clamp @4.0: straight 20.0 | curves 56.2 | return 91.9 | overall 53.5 cm)
+  Root cause of the 3.5 m/s ceiling: planner anchored the path on current CTE.
+SPEED SWEEP FINAL (2026-08-18) — pure pursuit + CTE clamp
+  V(m/s) km/h | straight | curves | return | overall
+  3.4   12.2  |   3.6    |  17.0  |  3.3   |   8.2
+  4.0   14.4  |   4.2    |  21.7  |  4.0   |   9.9
+  4.5   16.2  |   4.7    |  29.2  |  4.3   |  11.1   (2 runs)
+  5.0   18.0  |   5.2    |  36.5  |  4.6   |  13.5   (2 runs)
+  5.5   20.0  |   5.6    |  44.0  |  4.8   |  15.8
+  All completed the full route and stopped near the goal.
+  Straight-line accuracy is speed-independent; curve error grows linearly
+  -> geometric limit of the route (R=8.3 m), not a controller tuning issue.
+  Did NOT help the curve: A_LAT_MAX 1.0->0.6, max_lookahead 15->9,
+  removing yaw_change speed branches, MPC instead of pure pursuit.
