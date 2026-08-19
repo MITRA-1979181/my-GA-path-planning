@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 4.5
+        self.V_NOMINAL      = 4.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 1.0
         self.V_PLAN_HORIZON = 40.0
@@ -565,7 +565,7 @@ class GA_PlannerNode(Node):
             if self.is_calibrated:
                 print(f"[ODOM_CB] ✅ Calibration complete — "
                       f"OFFSET=({self.OFFSET_X:.3f}, {self.OFFSET_Y:.3f}) m")
-                if self.goal_pose is None and self.ref_points is not None:
+                if (not self.REAL_CAR_MODE) and self.goal_pose is None and self.ref_points is not None:
                     goal_idx = min(1400, len(self.ref_points) - 1)
                     self.GOAL_REF_IDX = goal_idx
                     last = self.ref_points[goal_idx]
