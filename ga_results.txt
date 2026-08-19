@@ -33,3 +33,26 @@ SPEED SWEEP FINAL (2026-08-18) — pure pursuit + CTE clamp
   -> geometric limit of the route (R=8.3 m), not a controller tuning issue.
   Did NOT help the curve: A_LAT_MAX 1.0->0.6, max_lookahead 15->9,
   removing yaw_change speed branches, MPC instead of pure pursuit.
+
+=== STRAIGHT-SECTION SPEED LIMIT (2026-08-19) ===
+Pure pursuit, CTE clamp, curvature-adaptive speed profile, full 405 m route.
+Mean |lateral error| vs reference centreline, cm.
+
+V_NOMINAL 7.0 m/s (25 km/h):
+  straight  10-140 m :  6.1   (max 23.4)
+  straight 255-400 m :  5.2   (max 21.9)
+  per-segment detail:
+     60-110 m :  2.9  (max  8.8)
+    110-140 m :  3.7  (max 10.3)
+    320-400 m :  3.6  (max 13.4)
+    260-320 m :  6.5  (max 21.9)
+  curves 150-250 m   : 78.0   (max 208)
+  Completed the route to meter 391 and stopped.
+
+KEY RESULT: straight-section accuracy does NOT degrade with speed.
+  12.2 km/h -> 3.6 cm      18.0 km/h -> 5.2 cm
+  14.4 km/h -> 4.2 cm      20.0 km/h -> 5.6 cm
+  16.2 km/h -> 4.7 cm      25.0 km/h -> 3-6 cm
+The speed limit of this course is set by the tightest curve (R = 8.3 m),
+not by the planner. 30 km/h through that curve needs 8.37 m/s^2 lateral
+acceleration (0.85 g), which no passenger vehicle can execute.
