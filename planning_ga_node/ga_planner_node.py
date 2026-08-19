@@ -146,7 +146,7 @@ class GA_PlannerNode(Node):
         self._v_current = 0.0
         self.V_NOMINAL      = 9.0
         self.V_MIN          = 0.3
-        self.A_LAT_MAX      = 1.0
+        self.A_LAT_MAX      = 2.0
         self.V_PLAN_HORIZON = 40.0
         self.TRAJECTORY_SPEED = self.V_NOMINAL
         print(f"[INIT] TRAJECTORY_SPEED={self.TRAJECTORY_SPEED} m/s")

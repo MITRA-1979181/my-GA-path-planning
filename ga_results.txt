@@ -56,3 +56,31 @@ KEY RESULT: straight-section accuracy does NOT degrade with speed.
 The speed limit of this course is set by the tightest curve (R = 8.3 m),
 not by the planner. 30 km/h through that curve needs 8.37 m/s^2 lateral
 acceleration (0.85 g), which no passenger vehicle can execute.
+
+V_NOMINAL 9.0 m/s attempt (2026-08-19), A_LAT_MAX = 1.0:
+  Actual speed never exceeded 6.2 m/s — compute_target_speed capped it.
+  straight  60-110 m : 2.8 cm (max  8.8)
+  straight 110-140 m : 3.9 cm (max 10.7)
+  straight 320-400 m : 5.0 cm (max 17.4)
+  curves 150-250 m   : 93.2 cm
+  Raising V_NOMINAL from 7.0 to 9.0 added no speed: the curvature-adaptive
+  profile is the binding constraint, not stability.
+  System ceiling on this course = 6.2 m/s = 22 km/h with A_LAT_MAX = 1.0.
+
+=== ANSWER: MAXIMUM SPEED ON STRAIGHT SECTIONS (2026-08-19) ===
+Config: pure pursuit, CTE clamp, V_NOMINAL 9.0, A_LAT_MAX 2.0, full 405 m route.
+Planner requested up to 7.8 m/s (28 km/h); RViz showed ~32 km/h actual.
+
+  straight  60-110 m : 3.0 cm  (max  8.3)
+  straight 110-140 m : 3.5 cm  (max 10.3)
+  straight 320-400 m : 3.5 cm  (max 14.3)
+  straight 260-320 m : 6.1 cm  (max 15.7)
+  curves   150-250 m : 92.7 cm  <- geometric limit, R = 8.3 m at meter 217
+
+Straight-line tracking accuracy is INDEPENDENT of speed:
+  12 km/h -> 3.6 cm    22 km/h -> 5.6 cm
+  18 km/h -> 5.2 cm    ~30 km/h -> 3.0-3.5 cm
+
+A_LAT_MAX 1.0 -> 2.0 raised the peak from 6.2 to 7.8 m/s with no loss of
+straight-line accuracy. The binding constraint is the curvature-adaptive
+speed profile, not stability.
