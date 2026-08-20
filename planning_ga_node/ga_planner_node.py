@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 9.0
+        self.V_NOMINAL      = 2.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 2.0
         self.V_PLAN_HORIZON = 40.0
@@ -321,6 +321,10 @@ class GA_PlannerNode(Node):
         except Exception as e:
             print(f"[INIT] velodyne subscription failed: {e}")
         self.detected_objects = []
+        self.perceived_objects = []
+        self.VEHICLE_HALF_WIDTH = 0.9
+        self.OBSTACLE_MARGIN    = 0.5
+        self.OBSTACLE_SOFT_ZONE = 2.0
         try:
             from autoware_perception_msgs.msg import PredictedObjects as _PO
             self.create_subscription(
@@ -519,6 +523,25 @@ class GA_PlannerNode(Node):
             except Exception:
                 pass
         self.detected_objects = objs
+        rects = []
+        for obj in msg.objects:
+            try:
+                if obj.existence_probability < 0.5:
+                    continue
+                pp = obj.kinematics.initial_pose_with_covariance.pose
+                dd = obj.shape.dimensions
+                vv = obj.kinematics.initial_twist_with_covariance.twist.linear
+                rects.append({
+                    "x": float(pp.position.x),
+                    "y": float(pp.position.y),
+                    "yaw": 2.0 * math.atan2(pp.orientation.z, pp.orientation.w),
+                    "hl": float(dd.x) * 0.5,
+                    "hw": float(dd.y) * 0.5,
+                    "speed": float(math.hypot(vv.x, vv.y)),
+                })
+            except Exception:
+                pass
+        self.perceived_objects = rects
         if objs:
             print(f"[OBJ_CB] {len(objs)} object(s): {[(round(o[0],1),round(o[1],1),round(o[2],1)) for o in objs]}")
 
@@ -1051,46 +1074,40 @@ class GA_PlannerNode(Node):
         )
 
     def calculate_environmental_costs(self, path: PathChromosome):
-        COLLISION_THRESHOLD = 0.8
-        SAFETY_BUFFER = 2.0
-
-        if self.dist_map is None or float(self.dist_map.max()) == 0.0:
+        """Collision and safety cost against perceived objects (map frame)."""
+        objs = self.perceived_objects
+        if not objs or not path.states:
             path.collision_cost = 0.0
-            path.safety_cost    = 0.0
+            path.safety_cost = 0.0
             return
 
-        pts = np.array([[s[0], s[1]] for s in path.states])
-        ix = ((pts[:, 0] - self.map_origin_x) / self.map_resolution).astype(np.int32)
-        iy = ((pts[:, 1] - self.map_origin_y) / self.map_resolution).astype(np.int32)
-        in_bounds = (ix >= 0) & (ix < self.map_width) & (iy >= 0) & (iy < self.map_height)
+        inflate = self.VEHICLE_HALF_WIDTH + self.OBSTACLE_MARGIN
+        hard = 0.0
+        soft = 0.0
+        pts = [(float(s[0]), float(s[1])) for s in path.states]
 
-        in_bounds_count = int(np.sum(in_bounds))
-        out_of_bounds_count = len(pts) - in_bounds_count
-        hard_cost = 0.0
-        soft_cost = 0.0
+        for o in objs:
+            cy = math.cos(-o["yaw"])
+            sy = math.sin(-o["yaw"])
+            hl = o["hl"] + inflate
+            hw = o["hw"] + inflate
+            hl_soft = hl + self.OBSTACLE_SOFT_ZONE
+            hw_soft = hw + self.OBSTACLE_SOFT_ZONE
+            for (px, py) in pts:
+                dx = px - o["x"]
+                dy = py - o["y"]
+                lx = dx * cy - dy * sy
+                ly = dx * sy + dy * cy
+                alx, aly = abs(lx), abs(ly)
+                if alx <= hl and aly <= hw:
+                    hard += 1.0
+                elif alx <= hl_soft and aly <= hw_soft:
+                    ox = max(0.0, alx - hl)
+                    oy = max(0.0, aly - hw)
+                    soft += max(0.0, self.OBSTACLE_SOFT_ZONE - math.hypot(ox, oy))
 
-        if np.any(in_bounds):
-            dist_m = self.dist_map[iy[in_bounds], ix[in_bounds]] * self.map_resolution
-            hard_cost = float(np.sum(dist_m <= COLLISION_THRESHOLD))
-            mask_buffer = (dist_m > COLLISION_THRESHOLD) & (dist_m < SAFETY_BUFFER)
-            soft_cost = float(np.sum(SAFETY_BUFFER - dist_m[mask_buffer]))
-        else:
-            print(f"[ENV_COST] ⚠️  ALL {len(pts)} path points are OUT OF MAP BOUNDS! "
-                  f"map=({self.map_width}x{self.map_height}), "
-                  f"origin=({self.map_origin_x:.1f},{self.map_origin_y:.1f}) — "
-                  f"assigning hard_cost=10.0")
-            hard_cost = 10.0
-
-        if out_of_bounds_count > 0:
-            print(f"[ENV_COST] {out_of_bounds_count}/{len(pts)} path points out of map bounds")
-        if hard_cost > 0:
-            print(f"[ENV_COST] ⚠️  Collision: hard_cost={hard_cost:.2f} "
-                  f"(pts within {COLLISION_THRESHOLD}m of obstacle)")
-        if soft_cost > 0:
-            print(f"[ENV_COST] Safety buffer: soft_cost={soft_cost:.2f}")
-
-        path.collision_cost = hard_cost
-        path.safety_cost = soft_cost
+        path.collision_cost = hard
+        path.safety_cost = soft
 
     def curvature_cost(self, path: PathChromosome) -> float:
         cost = 0.0
