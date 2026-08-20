@@ -9,7 +9,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 from nav_msgs.msg import Path, OccupancyGrid
 from geometry_msgs.msg import (
     Point,
@@ -351,6 +351,7 @@ class GA_PlannerNode(Node):
         self.trail_path = Path()
         self.trail_path.header.frame_id = "map"
         self.marker_pub = self.create_publisher(Marker, "ga_status_markers", 10)
+        self.pop_pub = self.create_publisher(MarkerArray, "/ga_population", 10)
         ctrl_qos = QoSProfile(
             reliability=QoSReliabilityPolicy.RELIABLE,
             durability=QoSDurabilityPolicy.VOLATILE,
@@ -1411,6 +1412,37 @@ class GA_PlannerNode(Node):
         if hasattr(self, '_last_best') and self._last_best is not None:
             self.publish(self._last_best)
 
+    def publish_population(self, pop):
+        """Draw the whole GA population: candidates faint, winner bold."""
+        try:
+            ma = MarkerArray()
+            now = self.get_clock().now().to_msg()
+            for i, chrom in enumerate(pop):
+                m = Marker()
+                m.header.frame_id = "map"
+                m.header.stamp = now
+                m.ns = "ga_population"
+                m.id = i
+                m.type = Marker.LINE_STRIP
+                m.action = Marker.ADD
+                m.pose.orientation.w = 1.0
+                best = (i == 0)
+                m.scale.x = 0.35 if best else 0.06
+                m.color.r = 0.05 if best else 0.55
+                m.color.g = 0.75 if best else 0.75
+                m.color.b = 1.0 if best else 0.85
+                m.color.a = 1.0 if best else 0.22
+                for st in chrom.states:
+                    pt = Point()
+                    pt.x = float(st[0])
+                    pt.y = float(st[1])
+                    pt.z = 0.1 if best else 0.05
+                    m.points.append(pt)
+                if len(m.points) >= 2:
+                    ma.markers.append(m)
+            self.safe_publish(self.pop_pub, ma)
+        except Exception as e:
+            print(f"[POP_VIZ] skipped: {e}")
     def run_ga(self) -> None:
         print("[RUN_GA] ✅ run_ga() entered — starting main while loop")
         self.get_logger().info("🚀 GA thread started with Kinematic Model")
@@ -1652,6 +1684,7 @@ class GA_PlannerNode(Node):
 
             self.evaluate(pop, local_tree, local_ref_points)
             pop.sort(key=lambda c: c.fitness, reverse=True)
+            self.publish_population(pop)
             best = pop[0]
             best.target_speed = current_target_speed
 
