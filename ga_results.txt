@@ -84,3 +84,8 @@ Straight-line tracking accuracy is INDEPENDENT of speed:
 A_LAT_MAX 1.0 -> 2.0 raised the peak from 6.2 to 7.8 m/s with no loss of
 straight-line accuracy. The binding constraint is the curvature-adaptive
 speed profile, not stability.
+
+MEASURED vehicle speed (/localization/kinematic_state, 60 s window):
+  peak 9.23 m/s = 33 km/h on straight sections
+  (planner requested 7.8 m/s; longitudinal controller overshoots)
+  Lateral tracking error at that speed: 3.0-3.5 cm
