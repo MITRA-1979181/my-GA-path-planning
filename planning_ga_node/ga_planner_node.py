@@ -210,9 +210,9 @@ class GA_PlannerNode(Node):
         self.gate_timer = self.create_timer(1.0, self._set_gate_auto)
         print("[INIT] Gate mode publisher created — will force AUTO on startup")
 
-        print("[CSV] Attempting to load /home/mitra/lane_centerline.csv ...")
+        print("[CSV] Attempting to load /home/mitra/lane_centerline_osimu.csv ...")
         try:
-            _csv_path = "/home/mitra/lane_centerline.csv"
+            _csv_path = "/home/mitra/lane_centerline_osimu.csv"
             print(f"[CSV] Loading: {_csv_path}")
             df = pd.read_csv(_csv_path)
             print(f"[CSV] File read OK — shape={df.shape}, columns={list(df.columns)}")
@@ -590,7 +590,11 @@ class GA_PlannerNode(Node):
                 print(f"[ODOM_CB] ✅ Calibration complete — "
                       f"OFFSET=({self.OFFSET_X:.3f}, {self.OFFSET_Y:.3f}) m")
                 if (not self.REAL_CAR_MODE) and self.goal_pose is None and self.ref_points is not None:
-                    goal_idx = min(1400, len(self.ref_points) - 1)
+                    _sp_g = float(np.mean(np.hypot(
+                        np.diff(self.ref_points[:, 0]),
+                        np.diff(self.ref_points[:, 1]))))
+                    goal_idx = min(int(382.0 / max(_sp_g, 1e-6)),
+                                   len(self.ref_points) - 1)
                     self.GOAL_REF_IDX = goal_idx
                     last = self.ref_points[goal_idx]
                     goal_msg = PoseStamped()
