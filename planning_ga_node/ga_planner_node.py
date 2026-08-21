@@ -114,7 +114,7 @@ class GA_PlannerNode(Node):
         print(f"[INIT] Drift protection: threshold={self.DRIFT_THRESHOLD}m, "
               f"confirm={self.DRIFT_CONFIRM_COUNT}, max_realign={self.MAX_REALIGN_OFFSET}m")
 
-        self.COLLISION_WEIGHT = 50.0
+        self.COLLISION_WEIGHT = 15.0
         self.SAFETY_BUFFER_WEIGHT = 50.0
         self.ROUGHNESS_WEIGHT = 10.0
         self.CTE_WEIGHT = 15.0
@@ -210,9 +210,9 @@ class GA_PlannerNode(Node):
         self.gate_timer = self.create_timer(1.0, self._set_gate_auto)
         print("[INIT] Gate mode publisher created — will force AUTO on startup")
 
-        print("[CSV] Attempting to load /home/mitra/lane_centerline_osimu.csv ...")
+        print("[CSV] Attempting to load /home/mitra/lane_centerline.csv ...")
         try:
-            _csv_path = "/home/mitra/lane_centerline_osimu.csv"
+            _csv_path = "/home/mitra/lane_centerline.csv"
             print(f"[CSV] Loading: {_csv_path}")
             df = pd.read_csv(_csv_path)
             print(f"[CSV] File read OK — shape={df.shape}, columns={list(df.columns)}")
@@ -322,6 +322,9 @@ class GA_PlannerNode(Node):
             print(f"[INIT] velodyne subscription failed: {e}")
         self.detected_objects = []
         self.perceived_objects = []
+        self._obstacle_ahead = False
+        self._blocked_latch = 0
+        self.MANOEUVRE_SPAN = 3.0   # lateral search half-width when an obstacle is ahead
         self.VEHICLE_HALF_WIDTH = 0.9
         self.OBSTACLE_MARGIN    = 0.5
         self.OBSTACLE_SOFT_ZONE = 2.0
@@ -1215,6 +1218,22 @@ class GA_PlannerNode(Node):
             veh_to_ref_x = float(self.ref_points[snap_idx_init, 0]) - sx
             veh_to_ref_y = float(self.ref_points[snap_idx_init, 1]) - sy
             physical_cte = math.hypot(veh_to_ref_x, veh_to_ref_y)
+            self._obstacle_ahead = False
+            try:
+                if self.perceived_objects and self.current_pose is not None:
+                    _cx = float(self.current_pose.pose.position.x)
+                    _cy = float(self.current_pose.pose.position.y)
+                    _cyaw = float(self.ref_points[snap_idx_init, 2])
+                    for _o in self.perceived_objects:
+                        _dx = _o["x"] - _cx
+                        _dy = _o["y"] - _cy
+                        _fwd = _dx * math.cos(_cyaw) + _dy * math.sin(_cyaw)
+                        if 0.0 < _fwd < 35.0 and math.hypot(_dx, _dy) < 40.0:
+                            self._obstacle_ahead = True
+                            break
+            except Exception:
+                pass
+
             n_recovery_wps = 5
             _rx0 = float(self.ref_points[snap_idx_init, 0])
             _ry0 = float(self.ref_points[snap_idx_init, 1])
@@ -1228,7 +1247,13 @@ class GA_PlannerNode(Node):
             _start_idx = min(snap_idx_init + _lead_idx, len(self.ref_points) - 1)
 
             for elite_i in range(n_ref_elites):
-                lateral_offset = self.ga_rng.uniform(-0.2, 0.2)
+                _span = self.MANOEUVRE_SPAN if self._obstacle_ahead else 0.2
+                if self._obstacle_ahead and n_ref_elites > 1:
+                    # spread the elites evenly across the manoeuvre space so the
+                    # GA samples left, centre and right rather than clustering
+                    lateral_offset = -_span + (2.0 * _span) * elite_i / (n_ref_elites - 1)
+                else:
+                    lateral_offset = self.ga_rng.uniform(-_span, _span)
                 states = []
                 directions = []
                 for wi in range(self.WAYPOINTS_PER_PATH + 1):
@@ -1753,12 +1778,32 @@ class GA_PlannerNode(Node):
             self._lane_shift_amount = _new_shift
             path_len = len(best.states)
             collision_fraction = best.collision_cost / max(path_len, 1)
-            if collision_fraction > 0.5:
+            _near_block = False
+            try:
+                if best.collision_cost > 0 and self.perceived_objects and self.current_pose is not None:
+                    _cx = float(self.current_pose.pose.position.x)
+                    _cy = float(self.current_pose.pose.position.y)
+                    for _o in self.perceived_objects:
+                        _d = math.hypot(_o["x"] - _cx, _o["y"] - _cy) - _o["hl"]
+                        if _d < 20.0:
+                            _near_block = True
+                            break
+            except Exception:
+                pass
+
+            if collision_fraction > 0.10 or _near_block:
+                if self._blocked_latch == 0:
+                    self._stop_anchor = None      # re-anchor where we actually are
+                self._blocked_latch = 12
+            elif collision_fraction < 0.03:
+                self._blocked_latch = max(0, self._blocked_latch - 1)
+
+            if self._blocked_latch > 0:
                 print(f"[RUN_GA] STEP7 ❌ {collision_fraction*100:.0f}% of path in collision "
                       f"(cost={best.collision_cost:.1f}) — publishing STOP")
                 self.get_logger().error("❌ COLLISION in BEST PATH (>50% of points)")
                 self.publish_stop()
-            elif collision_fraction > 0.2:
+            elif collision_fraction > 0.03:
                 print(f"[RUN_GA] STEP7 ⚠️  {collision_fraction*100:.0f}% of path near obstacles "
                       f"— publishing with caution")
                 self._last_best = best
@@ -2026,6 +2071,10 @@ class GA_PlannerNode(Node):
         except Exception:
             pass
             
+        if getattr(self, "_blocked_latch", 0) > 0:
+            for _p in traj.points:
+                _p.longitudinal_velocity_mps = 0.0
+                _p.acceleration_mps2 = 0.0
         self.safe_publish(self.traj_pub, traj)
         print(f"[PUBLISH] /trajectory: {len(traj.points)} points published (ego prepended)")
 
