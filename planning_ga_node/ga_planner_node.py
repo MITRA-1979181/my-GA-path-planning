@@ -78,7 +78,8 @@ class GA_PlannerNode(Node):
         self.POPULATION_SIZE = 30
         self.GENERATIONS = 30
         self.MUTATION_RATE = 0.08
-        self.WAYPOINTS_PER_PATH = 45
+        self.WAYPOINTS_PER_PATH = 30
+        self.WAYPOINTS_OBSTACLE = 45
         self.LOOK_AHEAD_DISTANCE = 7.0
         self.LATERAL_OFFSET_RIGHT = 0.0
         print(f"[INIT] GA params: POP={self.POPULATION_SIZE}, GEN={self.GENERATIONS}, "
@@ -144,7 +145,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 3.0
+        self.V_NOMINAL      = 5.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 2.0
         self.V_PLAN_HORIZON = 40.0
@@ -1242,7 +1243,11 @@ class GA_PlannerNode(Node):
                         _dx = _o["x"] - _cx
                         _dy = _o["y"] - _cy
                         _fwd = _dx * math.cos(_cyaw) + _dy * math.sin(_cyaw)
-                        if 0.0 < _fwd < 35.0 and math.hypot(_dx, _dy) < 40.0:
+                        # Keep the manoeuvre space open until the vehicle has
+                        # fully cleared the object, not just its front bumper:
+                        # _fwd is negative once the object is behind us, so
+                        # allow a trailing margin of the object's own length.
+                        if -(_o["hl"] + 6.0) < _fwd < 35.0 and math.hypot(_dx, _dy) < 40.0:
                             self._obstacle_ahead = True
                             break
             except Exception:
@@ -1270,7 +1275,9 @@ class GA_PlannerNode(Node):
                     lateral_offset = self.ga_rng.uniform(-_span, _span)
                 states = []
                 directions = []
-                for wi in range(self.WAYPOINTS_PER_PATH + 1):
+                _n_wp = (self.WAYPOINTS_OBSTACLE if self._obstacle_ahead
+                         else self.WAYPOINTS_PER_PATH)
+                for wi in range(_n_wp + 1):
                     ref_i = min(_start_idx + wi * self.REF_STEP_IDX, len(self.ref_points) - 1)
                     rx = float(self.ref_points[ref_i, 0])
                     ry = float(self.ref_points[ref_i, 1])
@@ -2085,9 +2092,14 @@ class GA_PlannerNode(Node):
         except Exception:
             pass
             
-        if getattr(self, "_blocked_latch", 0) > 0:
+        _lat = getattr(self, "_blocked_latch", 0)
+        if _lat > 0:
+            # Ramp down rather than stopping dead: a full stop mid-manoeuvre
+            # would leave the vehicle standing in the opposing lane. Only a
+            # sustained block (latch near its maximum) brings it to zero.
+            _scale = 0.0 if _lat >= 9 else (1.0 - _lat / 9.0) * 0.5
             for _p in traj.points:
-                _p.longitudinal_velocity_mps = 0.0
+                _p.longitudinal_velocity_mps *= _scale
                 _p.acceleration_mps2 = 0.0
         self.safe_publish(self.traj_pub, traj)
         print(f"[PUBLISH] /trajectory: {len(traj.points)} points published (ego prepended)")
