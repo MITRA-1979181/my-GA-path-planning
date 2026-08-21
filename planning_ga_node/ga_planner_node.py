@@ -79,7 +79,7 @@ class GA_PlannerNode(Node):
         self.GENERATIONS = 30
         self.MUTATION_RATE = 0.08
         self.WAYPOINTS_PER_PATH = 30
-        self.WAYPOINTS_OBSTACLE = 45
+        self.WAYPOINTS_OBSTACLE = 30
         self.LOOK_AHEAD_DISTANCE = 7.0
         self.LATERAL_OFFSET_RIGHT = 0.0
         print(f"[INIT] GA params: POP={self.POPULATION_SIZE}, GEN={self.GENERATIONS}, "
@@ -1270,7 +1270,11 @@ class GA_PlannerNode(Node):
                 if self._obstacle_ahead and n_ref_elites > 1:
                     # spread the elites evenly across the manoeuvre space so the
                     # GA samples left, centre and right rather than clustering
-                    lateral_offset = -_span + (2.0 * _span) * elite_i / (n_ref_elites - 1)
+                    # Overtaking is on the left on a right-hand-drive road,
+                    # so search the left side only. Sampling both sides made
+                    # the GA pick right first while the obstacle was still far,
+                    # then swing back left — half the vehicle left the road.
+                    lateral_offset = -0.3 + (_span + 0.3) * elite_i / (n_ref_elites - 1)
                 else:
                     lateral_offset = self.ga_rng.uniform(-_span, _span)
                 states = []
