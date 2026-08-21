@@ -78,7 +78,7 @@ class GA_PlannerNode(Node):
         self.POPULATION_SIZE = 30
         self.GENERATIONS = 30
         self.MUTATION_RATE = 0.08
-        self.WAYPOINTS_PER_PATH = 30
+        self.WAYPOINTS_PER_PATH = 45
         self.LOOK_AHEAD_DISTANCE = 7.0
         self.LATERAL_OFFSET_RIGHT = 0.0
         print(f"[INIT] GA params: POP={self.POPULATION_SIZE}, GEN={self.GENERATIONS}, "
@@ -144,7 +144,7 @@ class GA_PlannerNode(Node):
         self.POSE_FILTER_ALPHA = 0.3
         self.MAX_ALLOWED_CTE = 3.0
         self._v_current = 0.0
-        self.V_NOMINAL      = 2.0
+        self.V_NOMINAL      = 3.0
         self.V_MIN          = 0.3
         self.A_LAT_MAX      = 2.0
         self.V_PLAN_HORIZON = 40.0
@@ -1799,7 +1799,7 @@ class GA_PlannerNode(Node):
                     _cy = float(self.current_pose.pose.position.y)
                     for _o in self.perceived_objects:
                         _d = math.hypot(_o["x"] - _cx, _o["y"] - _cy) - _o["hl"]
-                        if _d < 20.0:
+                        if _d < max(15.0, 5.5 * max(current_target_speed, 1.0)):
                             _near_block = True
                             break
             except Exception:
