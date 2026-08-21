@@ -1,0 +1,10 @@
+<launch>
+  <!-- Relay: the controller subscribes to /planning/scenario_planning/trajectory,
+       and Autoware's own relay only starts when launch_planning is true. -->
+  <node pkg="topic_tools" exec="relay" name="ga_trajectory_relay" output="screen">
+    <param name="input_topic" value="/planning/trajectory"/>
+    <param name="output_topic" value="/planning/scenario_planning/trajectory"/>
+  </node>
+
+  <node pkg="planning_ga_node" exec="ga_planner_node" name="ga_planner_node" output="screen"/>
+</launch>

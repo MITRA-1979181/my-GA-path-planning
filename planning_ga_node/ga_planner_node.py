@@ -541,6 +541,10 @@ class GA_PlannerNode(Node):
                     "hl": float(dd.x) * 0.5,
                     "hw": float(dd.y) * 0.5,
                     "speed": float(math.hypot(vv.x, vv.y)),
+                    "vx": float(vv.x) * math.cos(2.0 * math.atan2(pp.orientation.z, pp.orientation.w))
+                          - float(vv.y) * math.sin(2.0 * math.atan2(pp.orientation.z, pp.orientation.w)),
+                    "vy": float(vv.x) * math.sin(2.0 * math.atan2(pp.orientation.z, pp.orientation.w))
+                          + float(vv.y) * math.cos(2.0 * math.atan2(pp.orientation.z, pp.orientation.w)),
                 })
             except Exception:
                 pass
@@ -1091,7 +1095,11 @@ class GA_PlannerNode(Node):
         inflate = self.VEHICLE_HALF_WIDTH + self.OBSTACLE_MARGIN
         hard = 0.0
         soft = 0.0
-        pts = [(float(s[0]), float(s[1])) for s in path.states]
+        # Time at which the vehicle reaches each path point, used to predict
+        # where a moving object will be by then. Points are DELTA_S apart.
+        _v = max(float(getattr(path, "target_speed", 0.0)), 0.5)
+        pts = [(float(st[0]), float(st[1]), i * self.DELTA_S / _v)
+               for i, st in enumerate(path.states)]
 
         for o in objs:
             cy = math.cos(-o["yaw"])
@@ -1100,9 +1108,15 @@ class GA_PlannerNode(Node):
             hw = o["hw"] + inflate
             hl_soft = hl + self.OBSTACLE_SOFT_ZONE
             hw_soft = hw + self.OBSTACLE_SOFT_ZONE
-            for (px, py) in pts:
-                dx = px - o["x"]
-                dy = py - o["y"]
+            _vx = o.get("vx", 0.0)
+            _vy = o.get("vy", 0.0)
+            _moving = (o.get("speed", 0.0) > 0.3)
+            for (px, py, _t) in pts:
+                # predict the object forward to the moment the vehicle arrives
+                _ox = o["x"] + (_vx * _t if _moving else 0.0)
+                _oy = o["y"] + (_vy * _t if _moving else 0.0)
+                dx = px - _ox
+                dy = py - _oy
                 lx = dx * cy - dy * sy
                 ly = dx * sy + dy * cy
                 alx, aly = abs(lx), abs(ly)
